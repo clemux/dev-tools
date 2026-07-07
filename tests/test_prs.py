@@ -4,7 +4,9 @@ from datetime import UTC, datetime
 
 from dev_tools.github import Project
 from dev_tools.prs import (
+    CommentSummary,
     PullRequestReport,
+    PullRequestSummary,
     ThreadSummary,
     latest_reviewer_comment,
     parse_pull_request_node,
@@ -148,3 +150,40 @@ def test_report_json_shape() -> None:
 def test_single_line_snippet_collapses_whitespace_and_truncates() -> None:
     assert single_line_snippet("a\n\nb\tc", limit=10) == "a b c"
     assert single_line_snippet("x" * 20, limit=10) == "xxxxxxx..."
+
+
+def test_render_human_report_groups_and_labels(capsys) -> None:
+    from dev_tools.render import render_human_report
+
+    report = PullRequestReport(
+        project=Project("clemux", "plant-manager"),
+        viewer="clemux",
+        prs=[
+            PullRequestSummary(
+                number=12,
+                title="Fix thing",
+                url="https://example.test/pull/12",
+                branch="fix-thing",
+                status="change requested",
+                is_draft=False,
+                review_decision="CHANGES_REQUESTED",
+                threads=ThreadSummary(total=2, resolved=1, unresolved=1),
+                latest_reviewer_comment=CommentSummary(
+                    author="reviewer",
+                    created_at="2026-07-07T10:00:00Z",
+                    body="Please change this",
+                    url="https://example.test/comment",
+                ),
+            )
+        ],
+    )
+
+    render_human_report(report)
+
+    output = capsys.readouterr().out
+    assert "PR triage" in output
+    assert "Project: clemux/plant-manager" in output
+    assert "Open PRs: 1" in output
+    assert "Needs attention (1)" in output
+    assert "Status:   change requested" in output
+    assert "Latest:   reviewer at 2026-07-07T10:00:00Z" in output
